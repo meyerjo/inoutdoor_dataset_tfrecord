@@ -1,0 +1,1 @@
+INOUTDOOR_LABELS = ['person']
