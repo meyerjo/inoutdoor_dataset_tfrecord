@@ -71,6 +71,7 @@ def create_boundingbox_tfrecord(boundingbox_structs, tfrecord_filename, load_fn=
                 'image/object/class/text': _bytes_feature(label_text),
                 'image/rgb/encoded': _bytes_feature(image_data_rgb),
                 'image/depth/encoded': _bytes_feature(image_data_depth),
+                'image/encoded': _bytes_feature(image_data_depth),
                 'image/format': img_format,
                 'image/filename': _bytes_feature(file_name),
                 'image/depth': _int64_feature([3]),

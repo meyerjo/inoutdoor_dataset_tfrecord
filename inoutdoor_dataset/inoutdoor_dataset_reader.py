@@ -38,6 +38,7 @@ class InoutdoorDatasetReader():
 
     def __init__(self, batch_size=1, epochs=1, threads=4, parallel_reads=2,
                  num_chained_buffers=2, buffer_size=128):
+        self.folders_dict = dict()
         self.batch_size = batch_size
         self.epochs = epochs
         self.threads = threads
@@ -46,14 +47,19 @@ class InoutdoorDatasetReader():
         self.num_chained_buffers = num_chained_buffers
         self.buffer_size = buffer_size
 
-        self.input_path = os.path.join(expanduser('~'), '.inoutdoor', 'tfrecord')
+        # self.input_path = os.path.join(expanduser('~'), '.inoutdoor', 'tfrecord')
+        self.input_path = os.path.join(
+            expanduser('~'), 'dataset', 'inoutdoorpeoplergbd', 'tfrecord')
         self.DEFAULT_TEST_SET = 3
         if not os.path.exists(self.input_path):
-            print('TFRecord path does not exists: {0}. First create the tfrecord file.'.format(self.input_path))
+            print('TFRecord path does not exists: {0}. '
+                  'First create the tfrecord file.'.format(self.input_path))
             exit(-1)
 
-    def generate_dataset(self, filenames, parsing_fn=None, shape_fn=None, parallel_reads=2, num_chained_buffers=2,
-                         buffer_size=128, repeat=1, num_threads=4, batch_size=1):
+    def generate_dataset(self, filenames, parsing_fn=None, shape_fn=None,
+                         parallel_reads=2, num_chained_buffers=2,
+                         buffer_size=128, repeat=1, num_threads=4,
+                         batch_size=1):
         """
         Generator a dataset based on tfrecord files
         :param filenames:
@@ -81,7 +87,7 @@ class InoutdoorDatasetReader():
         return dataset
 
     @staticmethod
-    def parsing_boundingboxes(serialized_example, output='tensors'):
+    def parsing_boundingboxes(serialized_example, output='tensors', modality='rgb'):
         """
 
         :param serialized_example:
@@ -96,7 +102,9 @@ class InoutdoorDatasetReader():
         feature_def = InoutdoorDatasetWriter.feature_dict_description('reading_shape')
         features = tf.parse_single_example(serialized_example, feature_def)
 
-        image = tf.image.decode_jpeg(features['image/encoded'], channels=3)
+        image = tf.image.decode_jpeg(features['image/{0}/encoded'.format(
+            modality
+        )], channels=3)
         boundingboxes = _recover_boundingboxes(features)
 
         image_shape = tf.convert_to_tensor([features['image/width'], features['image/height']])

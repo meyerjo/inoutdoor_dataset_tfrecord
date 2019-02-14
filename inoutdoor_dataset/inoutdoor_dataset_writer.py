@@ -75,8 +75,6 @@ class InoutdoorDatasetWriter(object):
         self.dataset_path = self.input_path
         self.image_sets = self.get_image_sets()
 
-
-
     @staticmethod
     def feature_dict_description(type='feature_dict'):
         """
@@ -216,6 +214,11 @@ class InoutdoorDatasetWriter(object):
         image_width, image_height = im.size
         image_filename = os.path.basename(default_image_path)
 
+        xmin = [x / float(image_width) for x in xmin]
+        xmax = [x / float(image_width) for x in xmax]
+        ymin = [y / float(image_height) for y in ymin]
+        ymax = [y / float(image_height) for y in ymax]
+
         image_fileid = re.search('^(.*)(\.png)$', image_filename).group(1)
         assert(image_fileid == image_id)
 
@@ -231,7 +234,6 @@ class InoutdoorDatasetWriter(object):
                 continue
             with open(item, 'rb') as f:
                 tmp_feat_dict['image/{0}/encoded'.format(key)] = bytes_feature(f.read())
-
 
         tmp_feat_dict['image/format'] = bytes_feature(image_format)
         tmp_feat_dict['image/filename'] = bytes_feature(image_filename)
@@ -249,7 +251,9 @@ class InoutdoorDatasetWriter(object):
         tmp_feat_dict['image/object/class/label/name'] = bytes_feature(
             label_bytes)
 
-        items_to_remove = [key for key, item in tmp_feat_dict.items() if item is None]
+        items_to_remove = [
+            key for key, item in tmp_feat_dict.items() if item is None
+        ]
         for it in items_to_remove:
             del tmp_feat_dict[it]
 
