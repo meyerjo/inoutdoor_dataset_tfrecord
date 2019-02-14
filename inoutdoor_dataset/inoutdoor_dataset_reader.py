@@ -37,7 +37,7 @@ class InoutdoorDatasetReader():
                 break
 
     def __init__(self, batch_size=1, epochs=1, threads=4, parallel_reads=2,
-                 num_chained_buffers=2, buffer_size=128):
+                 num_chained_buffers=2, buffer_size=128, modality='rgb'):
         self.folders_dict = dict()
         self.batch_size = batch_size
         self.epochs = epochs
@@ -46,6 +46,7 @@ class InoutdoorDatasetReader():
         self.parallel_reads = parallel_reads
         self.num_chained_buffers = num_chained_buffers
         self.buffer_size = buffer_size
+        self.modality = modality
 
         # self.input_path = os.path.join(expanduser('~'), '.inoutdoor', 'tfrecord')
         self.input_path = os.path.join(
@@ -73,8 +74,8 @@ class InoutdoorDatasetReader():
         :param batch_size: int - Batch Size (default=1)
         :return:
         """
-        assert(filenames != [] and
-               parsing_fn is not None and shape_fn is not None)
+        assert(filenames != [])
+        assert(parsing_fn is not None and shape_fn is not None)
         random.shuffle(filenames)
         dataset = tf.data.TFRecordDataset(filenames)
         # TODO: do the interleaving: http://www.moderndescartes.com/essays/shuffle_viz/
@@ -100,17 +101,25 @@ class InoutdoorDatasetReader():
             return 'image', 'bboxes', 'bbox_labels', 'image_ids', 'box_ids', 'image_shape'
 
         feature_def = InoutdoorDatasetWriter.feature_dict_description('reading_shape')
+        if modality == 'rgb':
+            del feature_def['image/depth/encoded']
+        else:
+            del feature_def['image/rgb/encoded']
+        del feature_def['image/encoded']
+
         features = tf.parse_single_example(serialized_example, feature_def)
 
-        image = tf.image.decode_jpeg(features['image/{0}/encoded'.format(
+        image = tf.image.decode_png(features['image/{0}/encoded'.format(
             modality
         )], channels=3)
         boundingboxes = _recover_boundingboxes(features)
 
         image_shape = tf.convert_to_tensor([features['image/width'], features['image/height']])
         image_ids = features['image/id']
-        box_ids = tf.cast(features['image/object/bbox/id'].values, tf.int64)
-        boundingbox_labels = tf.cast(features['image/object/class/label'].values, tf.int64)
+        # box_ids = tf.cast(features['image/object/bbox/id'].values, tf.int64)
+        # boundingbox_labels = tf.cast(features['image/object/class/label'].values, tf.int64)
+        box_ids = tf.cast(features['image/object/bbox/id'], tf.int64)
+        boundingbox_labels = tf.cast(features['image/object/class/label'], tf.int64)
         return tf.stop_gradient(image), tf.stop_gradient(boundingboxes), \
                tf.stop_gradient(boundingbox_labels), tf.stop_gradient(image_ids), \
                tf.stop_gradient(box_ids), tf.stop_gradient(image_shape)
@@ -123,9 +132,9 @@ class InoutdoorDatasetReader():
         test_set_file = self.DEFAULT_TEST_SET
         if version is not None and re.search('^[0123]$', str(version)):
             test_set_file = int(version)
-        filename_regex = re.compile('.*seq{0}.*tfrecord$'.format(
-            'seq[^{0}]'.format(test_set_file) if fold_type == 'train'
-            else 'seq{0}'.format(test_set_file)
+        filename_regex = re.compile('(.*?)_seq{0}_(.*?)tfrecord$'.format(
+            '[^{0}]'.format(test_set_file) if fold_type == 'train'
+            else '{0}'.format(test_set_file)
         ))
         filenames = InoutdoorDatasetDownload.filter_files(train_dir, False, filename_regex)
         if len(filenames) == 0 and download:
@@ -133,7 +142,7 @@ class InoutdoorDatasetReader():
                   'Build tfrecords.'.format(train_dir))
             exit(-1)
 
-        parser = lambda x: InoutdoorDatasetReader.parsing_boundingboxes(x)
+        parser = lambda x: InoutdoorDatasetReader.parsing_boundingboxes(x, modality=self.modality)
         shape = InoutdoorDatasetReader.parsing_boundingboxes(None, 'shape')
         dataset = self.generate_dataset(
             filenames, parser, shape,

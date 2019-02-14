@@ -104,11 +104,11 @@ class InoutdoorDatasetWriter(object):
             obj['image/object/class/label'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label/name'] = tf.VarLenFeature(tf.string)
             #
-            obj['image/object/class/label'] = tf.FixedLenFeature((), tf.int64, 1),
-            obj['image/object/class/text'] = tf.FixedLenFeature((), tf.string, default_value=''),
-            obj['image/rgb/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
-            obj['image/depth/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
-            obj['image/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
+            obj['image/object/class/label'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['image/object/class/text'] = tf.FixedLenFeature((), tf.string, default_value='')
+            obj['image/rgb/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
+            obj['image/depth/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
+            obj['image/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/depth'] =  tf.FixedLenFeature((), tf.int64, 1)
             obj['boxes/length'] = tf.FixedLenFeature((), tf.int64, 1)
         return obj
