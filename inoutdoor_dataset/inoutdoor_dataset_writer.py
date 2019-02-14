@@ -29,12 +29,52 @@ class InoutdoorDatasetWriter(object):
         'image/object/class/label/name': None,
         'image/object/class/label/id': None,
         'image/object/class/label': None,
-        'image/encoded': None,
         'image/format': None,
         'image/id': None,
         'image/source_id': None,
         'image/filename': None,
+        # new
+        'image/object/class/text': None,
+        'image/rgb/encoded': None,
+        'image/depth/encoded': None,
+        'image/encoded': None,
+        'image/depth': None,
+        'boxes/length': None,
     }
+
+    def get_image_sets(self):
+        imagesets = dict()
+        for f in os.listdir(self.image_set_definition_path):
+            # check if it is a file
+            if not os.path.isfile(os.path.join(
+                    self.image_set_definition_path, f)):
+                continue
+            imagesets[f] = []
+            with open(os.path.join(
+                    self.image_set_definition_path, f), 'r') as setfile:
+                for line in setfile.readlines():
+                    imagesets[f].append(
+                        line if not line.endswith('\n') else line[:-1]
+                    )
+        return imagesets
+
+    def __init__(self):
+        self.input_path = os.path.join(expanduser('~'), 'dataset', 'inoutdoorpeoplergbd')
+        assert (os.path.exists(self.input_path))
+
+        expected_paths = ['Images', 'Depth', 'Annotations', 'ImageSets']
+        for path in expected_paths:
+            if not os.path.exists(os.path.join(self.input_path, path)):
+                raise ValueError('Expected subdirectory {0} does not exist. {1}'.format(
+                    path, os.path.join(self.input_path, path))
+                )
+        self.tracking_path = os.path.join(self.input_path, 'Annotations')
+        self.rgb_path = os.path.join(self.input_path, 'Images')
+        self.depth_path = os.path.join(self.input_path, 'DepthJet')
+        self.image_set_definition_path = os.path.join(self.input_path, 'ImageSets')
+        self.dataset_path = self.input_path
+        self.image_sets = self.get_image_sets()
+
 
 
     @staticmethod
@@ -65,10 +105,16 @@ class InoutdoorDatasetWriter(object):
             obj['image/object/class/label/id'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label/name'] = tf.VarLenFeature(tf.string)
+            #
+            obj['image/object/class/label'] = tf.FixedLenFeature((), tf.int64, 1),
+            obj['image/object/class/text'] = tf.FixedLenFeature((), tf.string, default_value=''),
+            obj['image/rgb/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
+            obj['image/depth/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
+            obj['image/encoded'] = tf.FixedLenFeature((), tf.string, default_value=''),
+            obj['image/depth'] =  tf.FixedLenFeature((), tf.int64, 1)
+            obj['boxes/length'] = tf.FixedLenFeature((), tf.int64, 1)
         return obj
 
-    def __init__(self):
-        self.input_path = os.path.join(expanduser('~'), '.deepdrive')
 
     def unzip_file_to_folder(self, filename, folder, remove_file_after_creating=True):
         assert(os.path.exists(filename) and os.path.isfile(filename))
@@ -86,39 +132,36 @@ class InoutdoorDatasetWriter(object):
         :param version:
         :return: Raises BaseExceptions if expectations are not fulfilled
         """
-        assert(fold_type in ['train', 'test', 'val'])
-        version = '100k' if version is None else version
-        assert(version in ['100k', '10k'])
 
         download_folder = os.path.join(self.input_path, 'download')
-        expansion_images_folder = os.path.join(self.input_path, 'images')
-        expansion_labels_folder = os.path.join(self.input_path, 'labels')
+        expansion_images_folder = os.path.join(self.input_path, 'Images')
+        expansion_depthjet_folder = os.path.join(self.input_path, 'DepthJet')
+        expansion_labels_folder = os.path.join(self.input_path, 'Annotations')
         #
         if not os.path.exists(expansion_images_folder):
             mkdir_p(expansion_images_folder)
+        if not os.path.exists(expansion_depthjet_folder):
+            mkdir_p(expansion_depthjet_folder)
         if not os.path.exists(expansion_labels_folder):
             mkdir_p(expansion_labels_folder)
 
-        full_labels_path = os.path.join(expansion_labels_folder, 'bdd100k', 'labels', '100k')
-        full_images_path = os.path.join(expansion_images_folder, 'bdd100k', 'images')
-        if version in [None, '100k']:
-            full_images_path = os.path.join(full_images_path, '100k', fold_type)
-        else:
-            full_images_path = os.path.join(full_images_path, '10k', fold_type)
+        full_images_path = expansion_images_folder
+        full_depthjet_path = expansion_depthjet_folder
+        full_labels_path = expansion_labels_folder
 
         extract_files = True
-        if len(InoutdoorDatasetWriter.filter_folders(full_labels_path)) == 2 and \
-                len(InoutdoorDatasetWriter.filter_files(full_images_path)) > 0:
+        if len(InoutdoorDatasetDownload.filter_files(full_labels_path)) == \
+                len(InoutdoorDatasetDownload.filter_files(full_images_path)):
             print('Do not check the download folder. Pictures seem to exist.')
-            if fold_type != 'test':
-                full_labels_path = os.path.join(full_labels_path, fold_type)
             extract_files = False
         elif os.path.exists(download_folder):
-            files_in_directory = InoutdoorDatasetWriter.filter_files(download_folder, False, re.compile('\.zip$'))
-            if len(files_in_directory) < 2:
-                raise BaseException('Not enough files found in {0}. All files present: {1}'.format(
-                    download_folder, files_in_directory
-                ))
+            raise BaseException('not yet implemented')
+            # files_in_directory = InoutdoorDatasetDownload.filter_files(
+            #     download_folder, False, re.compile('\.zip$'))
+            # if len(files_in_directory) < 2:
+            #     raise BaseException('Not enough files found in {0}. All files present: {1}'.format(
+            #         download_folder, files_in_directory
+            #     ))
         else:
             mkdir_p(download_folder)
             raise BaseException('Download folder: {0} did not exist. It had been created. '
@@ -127,56 +170,36 @@ class InoutdoorDatasetWriter(object):
         # unzip the elements
         if extract_files:
             print('Starting to unzip the files')
-            self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_labels.zip'), expansion_labels_folder,
-                                      False)
-            self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_images.zip'), expansion_images_folder,
-                                      False)
+            raise BaseException('Starting to unzip the files')
 
         if fold_type == 'test':
-            return full_images_path, None
-        return full_images_path, full_labels_path
+            return full_images_path, full_depthjet_path, None
+        return full_images_path, full_depthjet_path, full_labels_path
 
-    def filter_boxes_from_annotation(self, annotations):
-        """
-
-        :param annotations:
-        :return: boxes, attributes
-        """
-        box = []
-        if annotations is None:
-            return box
-        attributes = annotations['attributes']
-        for frame in annotations['frames']:
-            for obj in frame['objects']:
-                if 'box2d' in obj:
-                    box.append(obj)
-        return dict(boxes=box, attributes=attributes)
 
     def _get_boundingboxes(self, annotations_for_picture_id):
         boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded =\
             [], [], [], [], [], [], [], [], []
         if annotations_for_picture_id is None:
             return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
-        assert(len(annotations_for_picture_id['frames']) == 1)
-        for frame in annotations_for_picture_id['frames']:
-            for obj in frame['objects']:
-                if 'box2d' not in obj:
-                    continue
-                boxid.append(obj['id'])
-                xmin.append(obj['box2d']['x1'])
-                xmax.append(obj['box2d']['x2'])
-                ymin.append(obj['box2d']['y1'])
-                ymax.append(obj['box2d']['y2'])
-                label.append(obj['category'])
-                label_id.append(INOUTDOOR_LABELS.index(obj['category']) + 1)
+        for i, object in enumerate(annotations_for_picture_id.get('object', [])):
+            if 'bndbox' not in object:
+                continue
+            boxid.append(i)
+            xmin.append(float(object['bndbox']['xmin']))
+            xmax.append(float(object['bndbox']['xmax']))
+            ymin.append(float(object['bndbox']['ymin']))
+            ymax.append(float(object['bndbox']['ymax']))
+            label.append(object['name'])
+            label_id.append(INOUTDOOR_LABELS.index(object['name']) + 1)
 
-                attributes = obj['attributes']
-                truncated.append(attributes.get('truncated', False))
-                occluded.append(attributes.get('occluded', False))
+            truncated.append(False)
+            occluded.append(False)
         return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
 
 
     def _get_tf_feature_dict(self, image_id, image_path, image_format, annotations):
+        assert(isinstance(image_path, dict))
         boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
             self._get_boundingboxes(annotations)
         truncated = np.asarray(truncated)
@@ -184,18 +207,32 @@ class InoutdoorDatasetWriter(object):
 
         # convert things to bytes
         label_bytes = [tf.compat.as_bytes(l) for l in label]
-        im = Image.open(image_path)
+
+        default_image_path = image_path['rgb'] \
+            if image_path.get('rgb', None) is not None \
+            else image_path['depth']
+
+        im = Image.open(default_image_path)
         image_width, image_height = im.size
-        image_filename = os.path.basename(image_path)
-        image_fileid = re.search('^(.*)(\.jpg)$', image_filename).group(1)
+        image_filename = os.path.basename(default_image_path)
+
+        image_fileid = re.search('^(.*)(\.png)$', image_filename).group(1)
+        assert(image_fileid == image_id)
 
         tmp_feat_dict = InoutdoorDatasetWriter.feature_dict
         tmp_feat_dict['image/id'] = bytes_feature(image_fileid)
         tmp_feat_dict['image/source_id'] = bytes_feature(image_fileid)
         tmp_feat_dict['image/height'] = int64_feature(image_height)
         tmp_feat_dict['image/width'] = int64_feature(image_width)
-        with open(image_path, 'rb') as f:
-            tmp_feat_dict['image/encoded'] = bytes_feature(f.read())
+        tmp_feat_dict['image/depth'] = int64_feature([3])
+
+        for key, item in image_path.items():
+            if item is None:
+                continue
+            with open(item, 'rb') as f:
+                tmp_feat_dict['image/{0}/encoded'.format(key)] = bytes_feature(f.read())
+
+
         tmp_feat_dict['image/format'] = bytes_feature(image_format)
         tmp_feat_dict['image/filename'] = bytes_feature(image_filename)
         tmp_feat_dict['image/object/bbox/id'] = int64_feature(boxid)
@@ -209,50 +246,77 @@ class InoutdoorDatasetWriter(object):
         tmp_feat_dict['image/object/class/label'] = int64_feature(label_id)
         tmp_feat_dict['image/object/class/label/name'] = bytes_feature(label_bytes)
 
-        return tmp_feat_dict
+        items_to_remove = [key for key, item in tmp_feat_dict.items() if item is None]
+        for it in items_to_remove:
+            del tmp_feat_dict[it]
 
+        return tmp_feat_dict
 
     def _get_tf_feature(self, image_id, image_path, image_format, annotations):
         feature_dict = self._get_tf_feature_dict(
             image_id, image_path, image_format, annotations)
         return tf.train.Features(feature=feature_dict)
 
-    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False):
-        output_path = os.path.join(self.input_path, 'tfrecord', version if version is not None else '100k', fold_type)
+    def write_tfrecord(self, fold_type=None, version=None,
+                       max_elements_per_file=1000, maximum_files_to_write=None,
+                       write_masks=False):
+        assert(version is None)
+        assert(fold_type in self.image_sets.keys())
+        assert(fold_type is not None and
+               re.match('^(seq\d)\.txt$', fold_type))
+        sequence_type = re.match('^(seq\d)\.txt$', fold_type).group(1)
+        output_path = os.path.join(self.input_path, 'tfrecord')
+
         if not os.path.exists(output_path):
             mkdir_p(output_path)
 
-        full_images_path, full_labels_path = self.get_image_label_folder(fold_type, version)
+        full_images_path, full_depthjet_path, full_labels_path = \
+            self.get_image_label_folder(fold_type, version)
 
         # get the files
-        image_files = InoutdoorDatasetDownload.filter_files(full_images_path, True)
+        image_files = InoutdoorDatasetDownload.filter_files(
+            full_images_path, True)
 
         def get_annotation(picture_id):
             if full_labels_path is None:
                 return None
-            with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
-                return json.loads(f.read())
+            with open(os.path.join(
+                    full_labels_path, picture_id + '.yml'), 'r') as f:
+                import yaml
+                obj = yaml.load(f.read())
+                obj_annotation = obj['annotation']
+                return obj_annotation
 
-        image_filename_regex = re.compile('^(.*)\.(jpg)$')
+        image_filename_regex = re.compile('^(.*)\.(png)$')
         tfrecord_file_id, writer = 0, None
-        tfrecord_filename_template = os.path.join(output_path, 'output_{version}_{{iteration:06d}}.tfrecord'.format(
-            version=fold_type + ('100k' if version is None else version)
+        tfrecord_filename_template = os.path.join(
+            output_path,
+            'output_{version}_split_{{iteration:06d}}.tfrecord'.format(
+            version=sequence_type
         ))
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            for file_counter, f in enumerate(image_files):
-                if file_counter % max_elements_per_file == 0:
+            files_written = 0
+            for file_counter, f in enumerate(self.image_sets[fold_type]):
+                f = f + '.png'
+                if files_written % max_elements_per_file == 0:
                     if writer is not None:
                         writer.close()
                         tfrecord_file_id += 1
-                    tmp_filename_tfrecord = tfrecord_filename_template.format(iteration=tfrecord_file_id)
-                    print('{0}: Create TFRecord filename: {1} after processing {2}/{3} files'.format(
-                        str(datetime.datetime.now()), tmp_filename_tfrecord, file_counter, len(image_files)
+                    tmp_filename_tfrecord = tfrecord_filename_template.format(
+                        iteration=tfrecord_file_id)
+                    print('{0}: Create TFRecord filename: {1} after '
+                          'processing {2}/{3} files'.format(
+                        str(datetime.datetime.now()), tmp_filename_tfrecord,
+                        files_written, len(image_files)
                     ))
-                    writer = tf.python_io.TFRecordWriter(tmp_filename_tfrecord)
-                elif file_counter % 250 == 0:
+                    writer = tf.python_io.TFRecordWriter(
+                        tmp_filename_tfrecord
+                    )
+                elif files_written % 250 == 0:
                     print('\t{0}: Processed file: {1}/{2}'.format(
-                        str(datetime.datetime.now()), file_counter, len(image_files)))
+                        str(datetime.datetime.now()),
+                        files_written, len(self.image_sets[fold_type])))
                 # match the filename with the regex
                 m = image_filename_regex.search(f)
                 if m is None:
@@ -261,13 +325,28 @@ class InoutdoorDatasetWriter(object):
 
                 picture_id = m.group(1)
                 picture_id_annotations = get_annotation(picture_id)
-                picture_id_boxes = self.filter_boxes_from_annotation(picture_id_annotations)
+
+                filenames = {'rgb': None, 'depth': None}
+                if version == 'rgb' or version is None:
+                    filenames['rgb'] = os.path.join(full_images_path, f)
+                elif version == 'depth':
+                    filenames['depth'] = os.path.join(full_depthjet_path, f)
+                else:
+                    filenames = {
+                        'rgb': os.path.join(full_images_path, f),
+                        'depth': os.path.join(full_depthjet_path, f)
+                    }
 
                 feature = self._get_tf_feature(
-                    picture_id, os.path.join(full_images_path, f),
+                    picture_id, filenames,
                     m.group(2), picture_id_annotations)
                 example = tf.train.Example(features=feature)
                 writer.write(example.SerializeToString())
+
+                if maximum_files_to_write is not None:
+                    if files_written < maximum_files_to_write:
+                        break
+                files_written += 1
 
             # Close the last files
             if writer is not None:
