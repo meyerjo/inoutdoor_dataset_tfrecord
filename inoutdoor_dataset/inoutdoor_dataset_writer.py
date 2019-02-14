@@ -178,7 +178,7 @@ class InoutdoorDatasetWriter(object):
 
 
     def _get_boundingboxes(self, annotations_for_picture_id):
-        boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded =\
+        boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
             [], [], [], [], [], [], [], [], []
         if annotations_for_picture_id is None:
             return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
@@ -240,11 +240,14 @@ class InoutdoorDatasetWriter(object):
         tmp_feat_dict['image/object/bbox/xmax'] = float_feature(xmax)
         tmp_feat_dict['image/object/bbox/ymin'] = float_feature(ymin)
         tmp_feat_dict['image/object/bbox/ymax'] = float_feature(ymax)
-        tmp_feat_dict['image/object/bbox/truncated'] = bytes_feature(truncated.tobytes())
-        tmp_feat_dict['image/object/bbox/occluded'] = bytes_feature(occluded.tobytes())
+        tmp_feat_dict['image/object/bbox/truncated'] = bytes_feature(
+            truncated.tobytes())
+        tmp_feat_dict['image/object/bbox/occluded'] = bytes_feature(
+            occluded.tobytes())
         tmp_feat_dict['image/object/class/label/id'] = int64_feature(label_id)
         tmp_feat_dict['image/object/class/label'] = int64_feature(label_id)
-        tmp_feat_dict['image/object/class/label/name'] = bytes_feature(label_bytes)
+        tmp_feat_dict['image/object/class/label/name'] = bytes_feature(
+            label_bytes)
 
         items_to_remove = [key for key, item in tmp_feat_dict.items() if item is None]
         for it in items_to_remove:
@@ -260,10 +263,12 @@ class InoutdoorDatasetWriter(object):
     def write_tfrecord(self, fold_type=None, version=None,
                        max_elements_per_file=1000, maximum_files_to_write=None,
                        write_masks=False):
-        assert(version is None)
+        assert(version is None or version in ['rgb', 'depth', 'both'])
         assert(fold_type in self.image_sets.keys())
         assert(fold_type is not None and
                re.match('^(seq\d)\.txt$', fold_type))
+        if version is None:
+            version = 'rgb'
         sequence_type = re.match('^(seq\d)\.txt$', fold_type).group(1)
         output_path = os.path.join(self.input_path, 'tfrecord')
 
@@ -272,10 +277,6 @@ class InoutdoorDatasetWriter(object):
 
         full_images_path, full_depthjet_path, full_labels_path = \
             self.get_image_label_folder(fold_type, version)
-
-        # get the files
-        image_files = InoutdoorDatasetDownload.filter_files(
-            full_images_path, True)
 
         def get_annotation(picture_id):
             if full_labels_path is None:
@@ -291,14 +292,17 @@ class InoutdoorDatasetWriter(object):
         tfrecord_file_id, writer = 0, None
         tfrecord_filename_template = os.path.join(
             output_path,
-            'output_{version}_split_{{iteration:06d}}.tfrecord'.format(
-            version=sequence_type
-        ))
+            'output_modality_{modality}_'
+            'sequence_{version}_'
+            'split_{{iteration:06d}}.tfrecord'.format(
+                modality=version,
+                version=sequence_type
+            ))
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             files_written = 0
-            for file_counter, f in enumerate(self.image_sets[fold_type]):
-                f = f + '.png'
+            for _, f in enumerate(self.image_sets[fold_type]):
+                f = '{0}.png'.format(f)
                 if files_written % max_elements_per_file == 0:
                     if writer is not None:
                         writer.close()
@@ -308,7 +312,7 @@ class InoutdoorDatasetWriter(object):
                     print('{0}: Create TFRecord filename: {1} after '
                           'processing {2}/{3} files'.format(
                         str(datetime.datetime.now()), tmp_filename_tfrecord,
-                        files_written, len(image_files)
+                        files_written, len(self.image_sets[fold_type])
                     ))
                     writer = tf.python_io.TFRecordWriter(
                         tmp_filename_tfrecord
@@ -338,8 +342,7 @@ class InoutdoorDatasetWriter(object):
                     }
 
                 feature = self._get_tf_feature(
-                    picture_id, filenames,
-                    m.group(2), picture_id_annotations)
+                    picture_id, filenames, m.group(2), picture_id_annotations)
                 example = tf.train.Example(features=feature)
                 writer.write(example.SerializeToString())
 
