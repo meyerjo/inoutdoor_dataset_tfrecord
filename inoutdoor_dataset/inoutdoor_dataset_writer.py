@@ -104,7 +104,7 @@ class InoutdoorDatasetWriter(object):
             obj['image/object/class/label'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label/name'] = tf.VarLenFeature(tf.string)
             #
-            obj['image/object/class/label'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['image/object/class/label'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/text'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/rgb/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/depth/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
@@ -321,7 +321,7 @@ class InoutdoorDatasetWriter(object):
                     writer = tf.python_io.TFRecordWriter(
                         tmp_filename_tfrecord
                     )
-                elif files_written % 250 == 0:
+                if files_written % 250 == 0:
                     print('\t{0}: Processed file: {1}/{2}'.format(
                         str(datetime.datetime.now()),
                         files_written, len(self.image_sets[fold_type])))

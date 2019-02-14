@@ -118,8 +118,9 @@ class InoutdoorDatasetReader():
         image_ids = features['image/id']
         # box_ids = tf.cast(features['image/object/bbox/id'].values, tf.int64)
         # boundingbox_labels = tf.cast(features['image/object/class/label'].values, tf.int64)
-        box_ids = tf.cast(features['image/object/bbox/id'], tf.int64)
-        boundingbox_labels = tf.cast(features['image/object/class/label'], tf.int64)
+        box_ids = tf.cast(features['image/object/bbox/id'].values, tf.int64)
+        boundingbox_labels = tf.cast(
+            features['image/object/class/label'].values, tf.int64)
         return tf.stop_gradient(image), tf.stop_gradient(boundingboxes), \
                tf.stop_gradient(boundingbox_labels), tf.stop_gradient(image_ids), \
                tf.stop_gradient(box_ids), tf.stop_gradient(image_shape)
