@@ -124,7 +124,8 @@ class InoutdoorDatasetReader():
         if version is not None and re.search('^[0123]$', str(version)):
             test_set_file = int(version)
         filename_regex = re.compile('.*seq{0}.*tfrecord$'.format(
-            'seq[^{0}]'.format(test_set_file) if fold_type == 'train' else 'seq{0}'.format(test_set_file)
+            'seq[^{0}]'.format(test_set_file) if fold_type == 'train'
+            else 'seq{0}'.format(test_set_file)
         ))
         filenames = InoutdoorDatasetDownload.filter_files(train_dir, False, filename_regex)
         if len(filenames) == 0 and download:
@@ -141,13 +142,37 @@ class InoutdoorDatasetReader():
         return dataset.make_one_shot_iterator().get_next(name='sample_tensor')
 
     def load_data_bbox(self, fold_type=None, version=None, download=False, write_masks=False):
+        # TODO: verify this
         return self.load_boundingbox_data(fold_type, version, download)
 
     def load_train_data_bbox(self, version=None, download=True):
-        return self.load_data_bbox('train', version, download)
+        return self.load_data_bbox(fold_type='train', version=version, download=download)
 
     def load_val_data_bbox(self, version=None, download=True):
         raise BaseException('No validation set available')
 
     def load_test_data_bbox(self, version=None, download=True):
-        return self.load_data_bbox('test', version, download)
+        return self.load_data_bbox(fold_type='test', version=version, download=download)
+
+    @staticmethod
+    def find_corrupt_tfrecords(train_dir, verbose=True):
+        train_files = sorted(
+            [os.path.join(train_dir, f)
+             for f in os.listdir(train_dir) if os.path.isfile(f)])
+        total_images = []
+        corrupted_images = []
+        for f_i, file in enumerate(train_files):
+            print(f_i)
+            try:
+                sum_elements = sum([1 for _ in tf.python_io.tf_record_iterator(file)])
+                total_images += sum_elements
+                if verbose:
+                    print('{0}: {1} elements'.format(file, sum_elements))
+            except BaseException as e:
+                corrupted_images.append(file)
+                if verbose:
+                    print('{0}: Corrupted {1}'.format(file, str(e)))
+        if verbose:
+            for f in corrupted_images:
+                print('Corrupted file: {0}'.format(f))
+        return corrupted_images
